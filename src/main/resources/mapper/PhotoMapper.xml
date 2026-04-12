@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="diary.ossupdownloadphoto.mapper.PhotoMapper">
+
+    <insert id="addPhotoToDb">
+        INSERT INTO photo (id, photo_type, photo_name, photo_size, photo_format, sort_order, photo_status)
+        VALUES (#{id}, #{photoType}, #{photoName}, #{photoSize}, #{photoFormat}, #{sortOrder}, #{photoStatus})
+    </insert>
+
+    <select id="selectPhotoByTypeAndName" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM photo WHERE photo_type = #{photoType} AND photo_name = #{photoName}
+    </select>
+
+    <update id="updatePhotoStatusById">
+        UPDATE photo SET photo_status = #{photoStatus}, oss_url = #{ossUrl} WHERE id = #{id}
+    </update>
+</mapper>
