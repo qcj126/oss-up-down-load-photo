@@ -1,0 +1,14 @@
+# Java 编译产物
+target/
+out/
+*.class
+
+# IDE 文件（可选）
+.idea/
+*.iml
+.settings/
+.project
+.classpath
+
+# 日志
+*.log
