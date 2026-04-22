@@ -38,6 +38,10 @@ aliyun:
     access-key-secret: your   # ??AccessKey Secret
     bucket-name: your                                 # ??Bucket??
     region: your
+
+download:
+  path: "C:\\Users\\admin\\Pictures\\Saved Pictures"  # 默认下载路径
+  timeout: 30000  # 下载超时时间（毫秒）
 mybatis:
   mapper-locations: mapper/*.xml
 
