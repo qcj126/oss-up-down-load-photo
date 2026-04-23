@@ -1,9 +1,7 @@
 package diary.ossupdownloadphoto.controller;
 
 import diary.ossupdownloadphoto.config.resultconfig.ResultDto;
-import diary.ossupdownloadphoto.service.FileAddService;
-import diary.ossupdownloadphoto.service.FileDownloadService;
-import diary.ossupdownloadphoto.service.FileUploadService;
+import diary.ossupdownloadphoto.service.FileService;
 import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,29 +14,23 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/file")
-public class FileUploadController {
+public class FileController {
     @Resource
-    private FileUploadService fileUploadService;
-
-    @Resource
-    private FileAddService fileAddService;
-
-    @Resource
-    private FileDownloadService fileDownloadService;
+    private FileService fileService;
 
     @PostMapping("/upload")
     public ResultDto upload(@RequestParam("files") List<MultipartFile> files) {
         // 直接先插入数据
-        Map<String, Object> result = fileAddService.addFileToDb(files);
+        Map<String, Object> result = fileService.addFileToDb(files);
         // 异步上传图片到OSS成功后，发送消息给mq
-        fileUploadService.uploadAndSendMsgAsync(result, files);
+        fileService.uploadAndSendMsgAsync(result, files);
         return ResultDto.isSuccess(result);
     }
 
     @PostMapping("/download")
     public ResultDto download(@RequestParam("ossUrls") List<String> ossUrls) {
         // 批量下载图片
-        Map<String, Object> result = fileDownloadService.batchDownloadImages(ossUrls);
+        Map<String, Object> result = fileService.batchDownloadImages(ossUrls);
         return ResultDto.isSuccess(result);
     }
 }

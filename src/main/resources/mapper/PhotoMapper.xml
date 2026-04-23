@@ -14,4 +14,12 @@
     <update id="updatePhotoStatusById">
         UPDATE photo SET photo_status = #{photoStatus}, oss_url = #{ossUrl} WHERE id = #{id}
     </update>
+
+    <insert id="batchAddPhotoToDb">
+        INSERT INTO photo (id, photo_type, photo_name, photo_size, photo_format, sort_order, photo_status)
+        VALUES
+        <foreach collection="photoList" item="photo" separator=",">
+            (#{photo.id}, #{photo.photoType}, #{photo.photoName}, #{photo.photoSize}, #{photo.photoFormat}, #{photo.sortOrder}, #{photo.photoStatus})
+        </foreach>
+    </insert>
 </mapper>

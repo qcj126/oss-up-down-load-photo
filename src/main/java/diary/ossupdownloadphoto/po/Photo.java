@@ -3,7 +3,7 @@ package diary.ossupdownloadphoto.po;
 import lombok.Data;
 
 @Data
-public class PhotoPO {
+public class Photo {
         private Long id;
         private String photoType;
         private String photoName;
