@@ -9,4 +9,7 @@ public class PhotoTypeConst {
     public static final String PHOTO_TYPE_ANIMATION = "动漫";
 
     public static final String PHOTO_TYPE_SWEETY = "甜妹";
+    
+    // 视频类型
+    public static final String VIDEO_TYPE = "video";
 }

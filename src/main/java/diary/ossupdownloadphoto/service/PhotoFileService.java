@@ -6,13 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public interface FileService {
+public interface PhotoFileService {
     /**
      * 批量添加文件信息到数据库
      * @param files 文件列表
      * @return 数据库插入结果
      */
-    Map<String, Object> addFileToDb(List<MultipartFile> files);
+    Map<String, Object> addPhotosToDb(List<MultipartFile> files);
 
     /**
      * 异步上传图片到OSS并发送消息
@@ -26,7 +26,7 @@ public interface FileService {
      * @param ossUrls OSS图片URL列表
      * @return 下载结果
      */
-    Map<String, Object> batchDownloadImages(List<String> ossUrls);
+    Map<String, Object> batchDownloadPhotos(List<String> ossUrls);
 
     /**
      * 异步下载单个图片

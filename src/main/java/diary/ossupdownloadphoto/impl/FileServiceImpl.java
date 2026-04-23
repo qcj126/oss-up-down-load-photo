@@ -9,7 +9,7 @@ import diary.ossupdownloadphoto.config.mqconfig.RabbitMqConfig;
 import diary.ossupdownloadphoto.mapper.PhotoMapper;
 import diary.ossupdownloadphoto.po.OssUploadSuccessMsg;
 import diary.ossupdownloadphoto.po.Photo;
-import diary.ossupdownloadphoto.service.FileService;
+import diary.ossupdownloadphoto.service.PhotoFileService;
 import diary.ossupdownloadphoto.service.RedisService;
 import diary.ossupdownloadphoto.util.MyOssUtils;
 import diary.ossupdownloadphoto.util.MyUtils;
@@ -48,7 +48,7 @@ import static diary.ossupdownloadphoto.util.MyUtils.isFileEmpty;
 
 @Slf4j
 @Service
-public class FileServiceImpl implements FileService {
+public class FileServiceImpl implements PhotoFileService {
     @Resource
     private PhotoMapper photoMapper;
 
@@ -74,7 +74,7 @@ public class FileServiceImpl implements FileService {
     private MyOssUtils myOssUtils;
 
     @Override
-    public Map<String, Object> addFileToDb(List<MultipartFile> files) {
+    public Map<String, Object> addPhotosToDb(List<MultipartFile> files) {
         if (files == null || files.isEmpty()) {
             return Map.of("code", 500, "message", "文件列表为空", "data", "null");
         }
@@ -284,7 +284,7 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public Map<String, Object> batchDownloadImages(List<String> ossUrls) {
+    public Map<String, Object> batchDownloadPhotos(List<String> ossUrls) {
         if (ossUrls == null || ossUrls.isEmpty()) {
             return Map.of("code", 500, "message", "URL列表为空", "data", "null");
         }
@@ -396,7 +396,7 @@ public class FileServiceImpl implements FileService {
             log.info("开始下载图片: {} -> {}", signedUrl, fullPath);
 
             // 使用HttpURLConnection下载文件，超时时间5分钟
-            downloadFileWithHttpURLConnection(signedUrl, fullPath.toFile(), 300000);
+            downloadFileWithHttpURLConnection(signedUrl, fullPath.toFile());
 
             result.put("status", "success");
             result.put("filePath", fullPath.toString());
@@ -416,11 +416,11 @@ public class FileServiceImpl implements FileService {
 
     /**
      * 使用HttpURLConnection下载文件到本地
-     * @param fileUrl 文件URL（签名URL）
+     *
+     * @param fileUrl  文件URL（签名URL）
      * @param destFile 目标文件
-     * @param timeoutMillis 超时时间（毫秒）
      */
-    private void downloadFileWithHttpURLConnection(String fileUrl, File destFile, int timeoutMillis) throws IOException {
+    private void downloadFileWithHttpURLConnection(String fileUrl, File destFile) throws IOException {
         HttpURLConnection connection = null;
         InputStream inputStream = null;
         FileOutputStream outputStream = null;
@@ -430,8 +430,8 @@ public class FileServiceImpl implements FileService {
             connection = (HttpURLConnection) uri.toURL().openConnection();
             connection.setRequestMethod("GET");
             // 设置连接超时和读取超时
-            connection.setConnectTimeout(timeoutMillis);
-            connection.setReadTimeout(timeoutMillis);
+            connection.setConnectTimeout(timeout);
+            connection.setReadTimeout(timeout);
             connection.setInstanceFollowRedirects(true);
 
             int responseCode = connection.getResponseCode();
