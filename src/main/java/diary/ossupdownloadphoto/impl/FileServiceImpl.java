@@ -11,6 +11,7 @@ import diary.ossupdownloadphoto.po.OssUploadSuccessMsg;
 import diary.ossupdownloadphoto.po.Photo;
 import diary.ossupdownloadphoto.service.FileService;
 import diary.ossupdownloadphoto.service.RedisService;
+import diary.ossupdownloadphoto.util.MyOssUtils;
 import diary.ossupdownloadphoto.util.MyUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -65,8 +67,11 @@ public class FileServiceImpl implements FileService {
     @Value("${download.path:C:\\Users\\admin\\Pictures\\Saved Pictures}")
     private String defaultDownloadPath;
 
-    @Value("${download.timeout:30000}")
+    @Value("${download.timeout:300000}")
     private int timeout;
+
+    @Resource
+    private MyOssUtils myOssUtils;
 
     @Override
     public Map<String, Object> addFileToDb(List<MultipartFile> files) {
@@ -342,8 +347,7 @@ public class FileServiceImpl implements FileService {
 
             Map<String, Object> response = new HashMap<>();
             response.put("code", 200);
-            response.put("message", String.format("下载完成，成功: %d, 失败: %d",
-                    successCount.get(), failCount.get()));
+            response.put("message", String.format("下载完成，成功: %d, 失败: %d", successCount.get(), failCount.get()));
             response.put("total", ossUrls.size());
             response.put("successCount", successCount.get());
             response.put("failCount", failCount.get());
@@ -352,11 +356,9 @@ public class FileServiceImpl implements FileService {
                 response.put("failedFiles", failedFiles);
             }
 
-            log.info("批量下载完成，总数: {}, 成功: {}, 失败: {}",
-                    ossUrls.size(), successCount.get(), failCount.get());
+            log.info("批量下载完成，总数: {}, 成功: {}, 失败: {}", ossUrls.size(), successCount.get(), failCount.get());
 
             return response;
-
         } catch (Exception e) {
             log.error("批量下载异常", e);
             return Map.of("code", 500, "message", "批量下载异常: " + e.getMessage(), "data", "null");
@@ -370,8 +372,12 @@ public class FileServiceImpl implements FileService {
         result.put("ossUrl", ossUrl);
 
         try {
-            // 从URL中提取文件名
-            String fileName = extractFileNameFromUrl(ossUrl);
+            // 生成签名URL（有效期5分钟）
+            String signedUrl = myOssUtils.generateSignedUrl(ossUrl);
+            log.info("生成签名URL: {}", signedUrl);
+
+            // 从签名URL中提取文件名
+            String fileName = extractFileNameFromUrl(signedUrl);
             if (fileName == null || fileName.isEmpty()) {
                 fileName = "image_" + System.currentTimeMillis() + ".jpg";
             }
@@ -387,10 +393,10 @@ public class FileServiceImpl implements FileService {
                 fullPath = Paths.get(savePath, newFileName);
             }
 
-            log.info("开始下载图片: {} -> {}", ossUrl, fullPath);
+            log.info("开始下载图片: {} -> {}", signedUrl, fullPath);
 
-            // 下载文件
-            downloadFile(ossUrl, fullPath.toFile());
+            // 使用HttpURLConnection下载文件，超时时间5分钟
+            downloadFileWithHttpURLConnection(signedUrl, fullPath.toFile(), 300000);
 
             result.put("status", "success");
             result.put("filePath", fullPath.toString());
@@ -407,20 +413,25 @@ public class FileServiceImpl implements FileService {
 
         return CompletableFuture.completedFuture(result);
     }
+
     /**
-     * 从URL下载文件到本地
+     * 使用HttpURLConnection下载文件到本地
+     * @param fileUrl 文件URL（签名URL）
+     * @param destFile 目标文件
+     * @param timeoutMillis 超时时间（毫秒）
      */
-    private void downloadFile(String fileUrl, File destFile) throws IOException {
+    private void downloadFileWithHttpURLConnection(String fileUrl, File destFile, int timeoutMillis) throws IOException {
         HttpURLConnection connection = null;
         InputStream inputStream = null;
         FileOutputStream outputStream = null;
 
         try {
-            URL url = new URL(fileUrl);
-            connection = (HttpURLConnection) url.openConnection();
+            URI uri = new URI(fileUrl);
+            connection = (HttpURLConnection) uri.toURL().openConnection();
             connection.setRequestMethod("GET");
-            connection.setConnectTimeout(timeout);
-            connection.setReadTimeout(timeout);
+            // 设置连接超时和读取超时
+            connection.setConnectTimeout(timeoutMillis);
+            connection.setReadTimeout(timeoutMillis);
             connection.setInstanceFollowRedirects(true);
 
             int responseCode = connection.getResponseCode();
@@ -435,7 +446,7 @@ public class FileServiceImpl implements FileService {
             inputStream = connection.getInputStream();
             outputStream = new FileOutputStream(destFile);
 
-            byte[] buffer = new byte[4096];
+            byte[] buffer = new byte[8192]; // 增大缓冲区到8KB
             int bytesRead;
             long totalBytesRead = 0;
 
@@ -447,6 +458,8 @@ public class FileServiceImpl implements FileService {
             outputStream.flush();
             log.debug("已下载: {} bytes", totalBytesRead);
 
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         } finally {
             if (outputStream != null) {
                 try {
@@ -462,9 +475,7 @@ public class FileServiceImpl implements FileService {
                     log.error("关闭输入流失败", e);
                 }
             }
-            if (connection != null) {
-                connection.disconnect();
-            }
+            if (connection != null) connection.disconnect();
         }
     }
 
@@ -481,9 +492,7 @@ public class FileServiceImpl implements FileService {
             fileName = java.net.URLDecoder.decode(fileName, StandardCharsets.UTF_8);
 
             // 验证文件名是否合法
-            if (fileName.contains(".")) {
-                return fileName;
-            }
+            if (fileName.contains(".")) return fileName;
         } catch (Exception e) {
             log.warn("从URL提取文件名失败: {}", url, e);
         }
@@ -504,7 +513,6 @@ public class FileServiceImpl implements FileService {
     private String getFileExtension(String fileName) {
         int dotIndex = fileName.lastIndexOf(".");
         return dotIndex > 0 && dotIndex < fileName.length() - 1
-                ? fileName.substring(dotIndex + 1)
-                : "jpg";
+                ? fileName.substring(dotIndex + 1) : "jpg";
     }
 }
