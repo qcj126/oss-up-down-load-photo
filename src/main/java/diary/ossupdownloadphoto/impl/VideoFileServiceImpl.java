@@ -2,6 +2,7 @@ package diary.ossupdownloadphoto.impl;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.model.*;
+import diary.ossupdownloadphoto.config.consts.FileTypeConst;
 import diary.ossupdownloadphoto.config.consts.PhotoStatusConst;
 import diary.ossupdownloadphoto.config.consts.PhotoTypeConst;
 import diary.ossupdownloadphoto.config.mqconfig.RabbitMqConfig;
@@ -53,8 +54,53 @@ public class VideoFileServiceImpl implements VideoFileService {
 
     @Override
     public Map<String, Object> addVideoToDb(MultipartFile file) {
-        return null;
+        if (file == null || file.isEmpty()) {
+            return Map.of("code", 500, "message", "文件为空", "data", "null");
+        }
 
+        try {
+            // 验证是否为视频类型
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith(FileTypeConst.CONTENT_TYPE_VIDEO_PREFIX)) {
+                // 进一步检查文件扩展名
+                String originalFilename = file.getOriginalFilename();
+                if (!isVideoFileByExtension(originalFilename)) {
+                    return Map.of("code", 500, "message", "文件不是视频类型", "data", "null");
+                }
+            }
+
+            long id = MyUtils.getPrimaryKey();
+            String videoType = PhotoTypeConst.VIDEO_TYPE;
+            String videoName = file.getOriginalFilename();
+
+            // 查看同一视频类别下是否有相同名称的视频
+            Integer isExist = photoMapper.selectPhotoByTypeAndName(videoType, videoName);
+            if (isExist > 0) {
+                return Map.of("code", 500, "message", "视频已存在", "data", "null");
+            }
+
+            long videoSize = file.getSize();
+            String videoFormat = contentType != null ? contentType : getFileExtension(videoName);
+            String videoStatus = PhotoStatusConst.PHOTO_STATUS_PROCESSING;
+
+            // 获取当前Redis中的视频数量，作为sortOrder
+            long currentCount = redisService.getPhotoCount();
+
+            // 插入数据库
+            Integer count = photoMapper.addPhotoToDb(id, videoType, videoName, videoSize, videoFormat, currentCount + 1, videoStatus);
+            if (count != null && count > 0) {
+                // 更新Redis计数
+                redisService.updatePhotoCount(currentCount + 1);
+                log.info("视频信息插入数据库成功，videoId: {}, videoName: {}", id, videoName);
+                return Map.of("code", 200, "message", "视频信息保存成功", "data", id);
+            } else {
+                log.error("视频信息插入数据库失败，videoName: {}", videoName);
+                return Map.of("code", 500, "message", "视频信息保存失败", "data", "null");
+            }
+        } catch (Exception e) {
+            log.error("处理视频文件时发生异常，文件名: {}", file.getOriginalFilename(), e);
+            return Map.of("code", 500, "message", "处理视频文件异常: " + e.getMessage(), "data", "null");
+        }
     }
 
     @Async("ossUploadExecutor")
@@ -203,9 +249,7 @@ public class VideoFileServiceImpl implements VideoFileService {
     private boolean isVideoFileByExtension(String fileName) {
         if (fileName == null) return false;
         String extension = getFileExtension(fileName).toLowerCase();
-        return extension.equals("mp4") || extension.equals("avi") || extension.equals("mov") ||
-               extension.equals("mkv") || extension.equals("flv") || extension.equals("wmv") ||
-               extension.equals("webm") || extension.equals("m4v") || extension.equals("mpeg");
+        return FileTypeConst.VIDEO_EXTENSIONS.contains(extension);
     }
 
     /**
