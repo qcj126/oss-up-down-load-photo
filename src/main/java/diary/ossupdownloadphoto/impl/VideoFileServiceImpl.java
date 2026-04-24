@@ -10,6 +10,7 @@ import diary.ossupdownloadphoto.mapper.PhotoMapper;
 import diary.ossupdownloadphoto.po.OssUploadSuccessMsg;
 import diary.ossupdownloadphoto.service.RedisService;
 import diary.ossupdownloadphoto.service.VideoFileService;
+import diary.ossupdownloadphoto.util.MyOssUtils;
 import diary.ossupdownloadphoto.util.MyUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,9 @@ public class VideoFileServiceImpl implements VideoFileService {
 
     @Resource
     private RabbitTemplate rabbitTemplate;
+
+    @Resource
+    private MyOssUtils  myOssUtils;
 
     // 分片大小：10MB
     private static final long PART_SIZE = 10 * 1024 * 1024L;
@@ -222,11 +226,7 @@ public class VideoFileServiceImpl implements VideoFileService {
             ossClient.completeMultipartUpload(completeRequest);
 
             // 5. 生成预签名URL
-            Date expiration = new Date(System.currentTimeMillis() + 3600 * 1000);
-            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, fileName);
-            request.setExpiration(expiration);
-            request.setMethod(com.aliyun.oss.HttpMethod.GET);
-            return ossClient.generatePresignedUrl(request).toString();
+            return myOssUtils.getSignedUrlByFileName(fileName);
         } catch (Exception e) {
             // 如果上传失败，取消分片上传
             if (uploadId != null) {

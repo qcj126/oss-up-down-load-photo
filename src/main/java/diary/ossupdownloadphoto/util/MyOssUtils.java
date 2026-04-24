@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.net.URL;
+import java.net.URI;
 import java.util.Date;
 
 @Slf4j
@@ -25,18 +25,13 @@ public class MyOssUtils {
      * @param ossUrl OSS URL或object key
      * @return 签名URL
      */
-    public String generateSignedUrl(String ossUrl) {
+    public String generateSignedUrlByKey(String ossUrl) {
         try {
             // 如果传入的是完整的OSS URL，提取object key
             String objectKey = extractObjectKeyFromUrl(ossUrl);
 
             // 生成签名URL，有效期5分钟
-            Date expiration = new Date(System.currentTimeMillis() + 5 * 60 * 1000);
-            GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, objectKey);
-            request.setExpiration(expiration);
-            request.setMethod(HttpMethod.GET);
-
-            String signedUrl = ossClient.generatePresignedUrl(request).toString();
+            String signedUrl = generateSignedUrl(objectKey);
             log.debug("生成签名URL成功，objectKey: {}", objectKey);
             return signedUrl;
         } catch (Exception e) {
@@ -56,7 +51,7 @@ public class MyOssUtils {
         try {
             // 从URL中提取object key
             // 格式: https://bucket-name.endpoint/object-key
-            URL url = new URL(ossUrl);
+            URI url = new URI(ossUrl);
             String path = url.getPath();
             // 移除开头的 /
             if (path.startsWith("/")) {
@@ -68,5 +63,26 @@ public class MyOssUtils {
             // 如果提取失败，尝试直接返回
             return ossUrl;
         }
+    }
+
+    public String getSignedUrlByFileName(String fileName) {
+        try {
+            // 生成签名URL，有效期5分钟
+            String signedUrl = generateSignedUrl(fileName);
+            log.debug("生成签名URL成功，fileName: {}", fileName);
+            return signedUrl;
+        } catch (Exception e) {
+            log.error("生成签名URL失败, fileName: {}", fileName, e);
+            throw new RuntimeException("生成签名URL失败: " + e.getMessage(), e);
+        }
+    }
+
+    private String generateSignedUrl(String key) {
+        Date expiration = new Date(System.currentTimeMillis() + 5 * 60 * 1000);
+        GeneratePresignedUrlRequest request = new GeneratePresignedUrlRequest(bucketName, key);
+        request.setExpiration(expiration);
+        request.setMethod(HttpMethod.GET);
+
+        return ossClient.generatePresignedUrl(request).toString();
     }
 }

@@ -373,7 +373,7 @@ public class FileServiceImpl implements PhotoFileService {
 
         try {
             // 生成签名URL（有效期5分钟）
-            String signedUrl = myOssUtils.generateSignedUrl(ossUrl);
+            String signedUrl = myOssUtils.generateSignedUrlByKey(ossUrl);
             log.info("生成签名URL: {}", signedUrl);
 
             // 从签名URL中提取文件名
